@@ -37,6 +37,14 @@ try {
     const prescriptionAnalyzeRoutes = require('./routes/prescriptionAnalyzeRoutes');
     console.log('[INIT] ✓ Prescription analyze routes loaded');
 
+    console.log('[INIT] Loading doctor prescription analysis routes...');
+    const doctorPrescriptionAnalysisRoutes = require('./routes/doctorPrescriptionAnalysisRoutes');
+    console.log('[INIT] ✓ Doctor prescription analysis routes loaded');
+    
+    console.log('[INIT] Loading patient AI routes...');
+    const patientAiRoutes = require('./routes/patientAiRoutes');
+    console.log('[INIT] ✓ Patient AI routes loaded');
+
     const app = express();
 
     // Middleware
@@ -82,6 +90,8 @@ try {
 
     // Prescription Analysis routes
     app.use('/api', prescriptionAnalyzeRoutes);
+    app.use('/api/doctor/prescription-analysis', doctorPrescriptionAnalysisRoutes);
+    app.use('/api/patient-ai', patientAiRoutes);
 
     // ============================================
     // ERROR HANDLING
@@ -108,7 +118,7 @@ try {
     const server = app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n✓ Hospital Management System Backend`);
         console.log(`✓ Server running on http://localhost:${PORT}`);
-        console.log(`✓ ZKP Authentication enabled`);
+        console.log(`✓ JWT authentication routes loaded`);
         console.log(`\n[${new Date().toISOString()}] Server started\n`);
     });
     

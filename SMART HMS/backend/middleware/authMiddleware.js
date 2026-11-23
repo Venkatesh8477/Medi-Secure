@@ -1,17 +1,22 @@
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../services/jwtConfig');
 
 /**
  * JWT Authentication Middleware
  */
 const authMiddleware = (req, res, next) => {
     try {
+        const jwtSecret = getJwtSecret();
+        if (!jwtSecret) {
+            return res.status(503).json({ success: false, error: 'Authentication is not configured.' });
+        }
         const token = req.headers.authorization?.split(' ')[1];
         
         if (!token) {
             return res.status(401).json({ success: false, error: 'No token provided' });
         }
         
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, jwtSecret);
         // Normalize token fields: some tokens use `user_id`, newer tokens use `id`.
         if (decoded) {
             if (!decoded.id && decoded.user_id) {

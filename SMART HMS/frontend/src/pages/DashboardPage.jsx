@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ZKPAuthService from '../services/zkpAuthService';
+import SimpleHashAuthService from '../services/simpleHashAuthService';
 import './Dashboard.css';
 
 function DashboardPage() {
@@ -17,7 +17,7 @@ function DashboardPage() {
     }, []);
 
     const handleLogout = () => {
-        ZKPAuthService.logout();
+        SimpleHashAuthService.logout();
         navigate('/login');
     };
 
@@ -42,7 +42,7 @@ function DashboardPage() {
             <div className="dashboard-content">
                 <div className="welcome-box">
                     <h1>Welcome, {user?.username}!</h1>
-                    <p>Hospital Management System with ZKP Authentication</p>
+                    <p>Hospital Management System</p>
 
                     <div className="info-grid">
                         <div className="info-card">
@@ -52,7 +52,7 @@ function DashboardPage() {
 
                         <div className="info-card">
                             <h3>Authentication</h3>
-                            <p className="badge-success">ZKP Secured</p>
+                            <p className="badge-success">Password and JWT authentication</p>
                         </div>
 
                         <div className="info-card">
@@ -149,7 +149,7 @@ function DashboardPage() {
                     <div className="security-info">
                         <h3>🔒 Security Information</h3>
                         <ul>
-                            <li><strong>Authentication:</strong> Zero Knowledge Proof (ZKP)</li>
+                            <li><strong>Authentication:</strong> Bcrypt password hash and JWT</li>
                             <li><strong>Password:</strong> Never sent to server</li>
                             <li><strong>Proof:</strong> Cryptographically verified</li>
                             <li><strong>Session:</strong> JWT token based</li>

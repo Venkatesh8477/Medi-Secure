@@ -1,8 +1,8 @@
 const express = require('express');
-const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { authMiddleware, roleMiddleware } = require('../middleware/authMiddleware');
 const multer = require('multer');
+const { chatJson } = require('../services/carecheck/llmService');
+const { createAiSuggestionsHandler } = require('../services/carecheck/controller');
 const path = require('path');
 const fs = require('fs');
 
@@ -11,9 +11,6 @@ const User = require('../models/User');
 const { Patient, Doctor, Nurse } = require('../models/RoleProfiles');
 const { Appointment, Diagnosis, VitalSign, PatientDocument, DailyProgress } = require('../models/Clinical');
 const { Medication, Prescription, LabRequest } = require('../models/PharmacyAndLab');
-
-// Initialize mongoose custom model for progress_notes if it was missed, wait DailyProgress maps to progress_notes essentially, I'll assume that.
-const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -30,11 +27,6 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
-
-const getGeminiAI = () => {
-    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyAKaDkSal6cEfifpbKD48GkHAH8yFjomnU';
-    return new GoogleGenerativeAI(apiKey);
-};
 
 // ============================================
 // DOCTOR ENDPOINTS
@@ -84,67 +76,7 @@ router.get('/doctor/patient/:patientId', authMiddleware, roleMiddleware('doctor'
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-router.post('/doctor/patient/:patientId/ai-suggestions', authMiddleware, roleMiddleware('doctor'), async (req, res) => {
-    try {
-        const genAI = getGeminiAI();
-        const patient = await Patient.findById(req.params.patientId).populate('user').lean();
-        if (!patient) return res.status(404).json({ error: 'Patient not found' });
-        
-        const diagnoses = await Diagnosis.find({ patient: req.params.patientId }).sort('-created_at').lean();
-        const prescriptionsList = await Prescription.find({ patient: req.params.patientId }).populate('medication').sort('-created_at').limit(10).lean();
-        const vitals = await VitalSign.find({ patient: req.params.patientId }).sort('-recorded_at').limit(5).lean();
-        
-        const patientData = {
-            name: `${patient.user?.first_name} ${patient.user?.last_name}`,
-            age: patient.date_of_birth ? new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear() : 'Unknown',
-            bloodGroup: patient.blood_group || 'Unknown',
-            allergies: patient.allergies || 'None known',
-            diagnoses: diagnoses.map(d => ({ name: d.diagnosis_name, icdCode: d.icd_code, severity: d.severity, description: d.description, date: d.created_at })),
-            prescriptions: prescriptionsList.map(p => ({ medication: p.medication?.name, strength: p.medication?.strength, dosage: p.dosage, frequency: p.frequency, duration: p.duration })),
-            vitals: vitals.length > 0 ? {
-                temperature: vitals[0].temperature, heartRate: vitals[0].heart_rate,
-                bloodPressure: `${vitals[0].blood_pressure_systolic}/${vitals[0].blood_pressure_diastolic}`,
-                oxygenSaturation: vitals[0].oxygen_saturation
-            } : null
-        };
-        
-        const prompt = `You are a medical AI assistant helping a doctor with patient analysis. Based on following:
-1. **Possible Diagnosis Differentials**: 3-5 potential diagnoses with Likelihood and reasoning.
-2. **Test Recommendations**: Relevant tests.
-3. **Drug Guidelines**: Interactions, dosages, contraindications.
-
-Patient: ${patientData.name}, Age: ${patientData.age}, Allergies: ${patientData.allergies}
-Diagnoses: ${patientData.diagnoses.map(d=>d.name).join(', ') || 'None'}
-Prescriptions: ${patientData.prescriptions.map(p=>p.medication).join(', ') || 'None'}
-Vitals: ${patientData.vitals ? `Temp ${patientData.vitals.temperature}, BP ${patientData.vitals.bloodPressure}`: 'None'}
-
-Format as strict JSON:
-{
-  "diagnosisDifferentials": [{"diagnosis":"","likelihood":"","reasoning":""}],
-  "testRecommendations": [{"test":"","purpose":"","priority":""}],
-  "drugGuidelines": {"interactions":[],"dosageReview":"","recommendations":[],"contraindications":[]}
-}`;
-
-        const modelNames = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-pro-latest'];
-        let text = null;
-        for (const modelName of modelNames) {
-            try {
-                const model = genAI.getGenerativeModel({ model: modelName });
-                const result = await model.generateContent(prompt);
-                text = (await result.response).text();
-                break;
-            } catch (e) { continue; }
-        }
-        
-        let aiSuggestions;
-        try {
-            const jsonText = (text.match(/```json\s*([\s\S]*?)\s*```/) || [null, text])[1] || text;
-            aiSuggestions = JSON.parse(jsonText);
-        } catch (e) { aiSuggestions = { rawResponse: text, error: "Parse error" }; }
-        
-        res.json({ success: true, suggestions: aiSuggestions, patientData: { name: patientData.name, diagnosesCount: diagnoses.length, prescriptionsCount: prescriptionsList.length } });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
+router.post('/doctor/patient/:patientId/ai-suggestions', authMiddleware, roleMiddleware('doctor'), createAiSuggestionsHandler());
 
 router.post('/doctor/diagnoses', authMiddleware, roleMiddleware('doctor'), async (req, res) => {
     try {
@@ -235,16 +167,10 @@ router.post('/patient/prescription/:prescriptionId/ai-analysis', authMiddleware,
             };
         }
 
-        const allergies = patient.allergies || 'None known';
-        const prompt = `Provide patient-friendly instructions for ${prescriptionData.medication}. Allergies: ${allergies}. Return JSON with: howToTake, importantNotes[]`;
-        
-        const genAI = getGeminiAI();
-        const result = await genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }).generateContent(prompt);
-        let text = (await result.response).text();
-        
-        let aiAnalysis;
-        try { aiAnalysis = JSON.parse((text.match(/```json\s*([\s\S]*?)\s*```/) || [null, text])[1] || text); }
-        catch (e) { aiAnalysis = { medication: prescriptionData.medication, howToTake: 'Please refer to doc' }; }
+        const allergies = patient.allergies || 'Not recorded';
+        const { value: aiAnalysis } = await chatJson({ role: 'prescription explanation',
+            system: 'Explain only the supplied prescription information in patient-friendly language. Do not provide or alter dosage instructions not explicitly supplied. Do not diagnose. State that the prescriber or pharmacist should answer questions. Return JSON with howToTake and importantNotes array.',
+            user: JSON.stringify({ prescription: prescriptionData, allergies }) });
         
         res.json({ success: true, analysis: aiAnalysis, prescription: prescriptionData });
     } catch (error) { res.status(500).json({ error: error.message }); }

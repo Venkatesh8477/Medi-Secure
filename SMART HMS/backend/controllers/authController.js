@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const SimpleHashAuth = require('../services/simpleHashAuth');
+const PasswordService = require('../services/passwordService');
+const { getJwtSecret } = require('../services/jwtConfig');
 const User = require('../models/User');
 const { Patient, Doctor, Nurse, Pharmacist, LabTechnician, Receptionist } = require('../models/RoleProfiles');
 
@@ -15,6 +16,9 @@ class AuthController {
             if (!username || !email || !password || !role) {
                 return res.status(400).json({ success: false, error: 'All fields are required' });
             }
+            if (typeof password !== 'string' || password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
+                return res.status(400).json({ success: false, error: 'Password must be at least 12 characters and no more than 72 UTF-8 bytes.' });
+            }
 
             // Check if user already exists
             const existing = await User.findOne({ 
@@ -26,13 +30,14 @@ class AuthController {
             }
 
             // Hash password
-            const passwordHash = SimpleHashAuth.generatePasswordHash(password);
+            const passwordHash = await PasswordService.hash(password);
 
             // Insert user
             const user = new User({
                 username,
                 email,
                 password_hash: passwordHash,
+                auth_type: 'bcrypt',
                 role,
                 first_name: firstName || username,
                 last_name: lastName || ''
@@ -89,20 +94,25 @@ class AuthController {
             }
 
             // Verify password
-            const isValid = SimpleHashAuth.verifyPassword(password, user.password_hash);
+            const isValid = await PasswordService.verifyAndUpgrade(password, user);
             
             if (!isValid) {
                 return res.status(401).json({ success: false, error: 'Invalid credentials' });
             }
 
             // Generate JWT token
+            const jwtSecret = getJwtSecret();
+            if (!jwtSecret) {
+                return res.status(503).json({ success: false, error: 'Authentication is not configured. Set a JWT_SECRET of at least 32 characters.' });
+            }
+
             const token = jwt.sign(
                 {
                     id: user._id,
                     username: user.username,
                     role: user.role
                 },
-                process.env.JWT_SECRET || 'your_jwt_secret_key',
+                jwtSecret,
                 { expiresIn: process.env.TOKEN_EXPIRY || '24h' }
             );
 

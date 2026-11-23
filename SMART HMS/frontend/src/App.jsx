@@ -59,12 +59,6 @@ const getUserRole = () => {
 };
 
 function App() {
-    // Clear localStorage on app startup - fresh login required
-    React.useEffect(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-    }, []);
-
     return (
         <Router>
             <Routes>

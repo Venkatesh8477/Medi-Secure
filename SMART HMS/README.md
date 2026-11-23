@@ -1,16 +1,14 @@
-# 🏥 Hospital Management System with ZKP Authentication
+# Hospital Management System
 
-> A complete, production-ready hospital management system featuring advanced Zero Knowledge Proof (ZKP) based authentication
+React and Express hospital-management application using MongoDB/Mongoose, JWT authentication, and role-based dashboards. This repository is a development project; review security, privacy, and clinical requirements before production use.
 
 ## 🌟 Features
 
 ### Security
-- ✅ **Zero Knowledge Proof Authentication** - Password never sent to server
-- ✅ **Cryptographic Proof Verification** - Can't forge authentication without secret
-- ✅ **Replay Attack Protection** - Different proof for every login
-- ✅ **Brute Force Immune** - Mathematical impossibility of guessing
-- ✅ **JWT Session Management** - Secure token-based sessions
-- ✅ **Role-Based Access Control (RBAC)** - 7 distinct user roles
+- Bcrypt password hashing for new accounts, with legacy password hashes upgraded after successful login
+- JWT authentication and role-based middleware
+- JWT signing and verification require the same configured `JWT_SECRET`
+- This implementation does not use Zero-Knowledge Proof authentication
 
 ### Hospital Management
 - 👨‍⚕️ **Doctor Dashboard** - Patient management, diagnoses, prescriptions
@@ -30,34 +28,23 @@
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                   React Frontend                         │
 │  (Login → Register → Dashboard by Role)                 │
 └──────────────────┬──────────────────────────────────────┘
-                   │ HTTPS
-    ┌──────────────┴──────────────┐
-    │   ZKP Authentication Flow   │
-    │  (Password never sent)      │
-    │ 1. Client derives secret    │
-    │ 2. Server sends challenge   │
-    │ 3. Client proves knowledge  │
-    │ 4. Server verifies proof    │
-    └──────────────┬──────────────┘
-                   │
 ┌──────────────────V──────────────────────────────────────┐
 │           Express.js REST API (Node.js)                │
-│  • Authentication endpoints (register, login, verify)  │
+│  • Authentication endpoints (register, login, current) │
 │  • Hospital features (doctors, patients, pharmacy)     │
 │  • Role-based middleware                               │
 └──────────────────┬──────────────────────────────────────┘
                    │
     ┌──────────────┴──────────────┐
-    │      MySQL Database          │
-    │  (14 tables, relationships)  │
-    │  • Users & ZKP credentials   │
+    │      MongoDB Database        │
+    │  • Mongoose models           │
     │  • Patient medical records   │
     │  • Appointments & diagnoses  │
     │  • Prescriptions & medicines │
@@ -67,63 +54,26 @@
 
 ---
 
-## 🔐 ZKP Authentication Explained
+## Authentication
 
-### Why ZKP?
+The login API receives the password over the application connection and stores a bcrypt hash. Existing legacy hashes are checked at login and upgraded on successful authentication. Use HTTPS in deployed environments. The application does not implement ZKP authentication, and this README makes no compliance certification claim.
+New passwords must be at least 12 characters and no more than 72 UTF-8 bytes.
 
-Traditional authentication stores password hashes. Even with hashing:
-- If database is breached, attackers get password hashes
-- Hashes can be brute-forced with rainbow tables
-- **Risk:** Medical records exposed (HIPAA violation)
+## AI Prescription Intelligence
 
-**ZKP Solution:**
-- Server stores only mathematical public key
-- If database is breached, useless information is exposed
-- Password is NEVER sent to server or stored anywhere
-- Attacker cannot forge authentication without the secret
+The Doctor Dashboard supports Single-Agent or Multi-Agent analysis through Gemini, Ollama Cloud, or both providers for comparison. PDF text extraction and PNG/JPEG OCR run on the backend. DailyMed drug-label references are retrieved separately and shown with their source URLs. Results are unverified decision support: an authorized doctor must review them; the system does not approve or change treatment.
 
-### How It Works
+The feature is disabled unless `AI_PRESCRIPTION_ANALYSIS_ENABLED=true` and `AI_EXTERNAL_DATA_SHARING_APPROVED=true` are set in the backend environment. Enable external sharing only after your organization has approved the relevant patient-data sharing, consent, and retention arrangements. Set provider API keys in the backend environment only.
 
-#### Registration
-```
-User: "Enter password: SecurePass@2025"
-       ↓
-Client: Derive secret x using SHA-256
-       ↓
-Client: Calculate public key y = 2^x mod p
-       ↓
-Client: Encrypt secret for local storage
-       ↓
-Server: Store only (y, p, g) - mathematically one-way
-```
+## Patient AI Assistant
 
-#### Login
-```
-STEP 1: Initiate Proof
-  Client sends username and t = 2^r mod p (random r)
-  Server generates random challenge c
-  
-STEP 2: Generate Proof
-  Client derives secret x from password
-  Client calculates proof: s = r + (c × x)
-  
-STEP 3: Verify Proof
-  Server checks: 2^s = t × y^c (mod p)
-  ✓ Only true if client knows secret x
-  
-STEP 4: Create Session
-  JWT token issued and stored in browser
-```
+The patient portal includes a separate AI assistant with patient-owned conversations, English/Telugu responses, emergency and medication-change guardrails, prescription OCR, medicine-label lookup through DailyMed, and optional source-grounded health answers.
 
-### Security Properties
-```
-✅ Password never in network traffic
-✅ Password never on server
-✅ Proof changes every login (replay-proof)
-✅ Can't forge proof without secret (brute-force immune)
-✅ Even if hacked, password stays secret
-✅ HIPAA compliant
-```
+The patient AI module is disabled unless both `PATIENT_AI_ENABLED=true` and `PATIENT_AI_EXTERNAL_DATA_SHARING_APPROVED=true` are explicitly set. This patient-specific approval is independent of the doctor prescription-analysis flags. The patient assistant never sends the patient's chart or uploaded original prescription to the model. Prescription files are processed in memory; only extracted medicine fields, uncertainty notes, and source references are retained with the patient's conversation.
+
+General health RAG requires `OLLAMA_EMBEDDING_MODEL` and an admin-curated corpus. The application stores text chunks and embeddings in MongoDB and currently ranks them with in-process cosine similarity; it does not require Atlas Vector Search, but this approach is intended for a small corpus. Only HTTPS sources whose host matches `PATIENT_AI_RAG_ALLOWED_DOMAINS` may be ingested. Source content must be reviewed before ingestion. An admin can ingest a reviewed source using `POST /api/patient-ai/admin/knowledge` with `{ "title": "...", "sourceUrl": "https://medlineplus.gov/...", "content": "..." }`.
+
+Patient routes include `POST /api/patient-ai/chat`, `POST /api/patient-ai/prescription/analyze`, `GET /api/patient-ai/medicine/:name`, conversation history/deletion, and `POST /api/patient-ai/doctor-handoff`. Patient records are scoped to the authenticated patient's own profile. The assistant does not provide diagnoses, prescribe, validate drug interactions, or recommend medication changes. It is not a substitute for clinical review.
 
 ---
 
@@ -146,52 +96,18 @@ STEP 4: Create Session
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 14+
-- MySQL 5.7+
-- Git
+- Node.js 20+
+- MongoDB (local or hosted)
 
-### Installation (5 minutes)
+### Local development
 
-**1. Clone and enter directory**
-```bash
-cd "c:\Users\nbhar\SMART HMS"
-```
+1. In `SMART HMS\backend`, copy `.env.example` to `.env`.
+2. Set `MONGO_URI` and a unique random `JWT_SECRET` of at least 32 characters.
+3. Install dependencies and start the API with `npm install` and `npm start`.
+4. In a separate terminal, enter `SMART HMS\frontend`, run `npm install` and `npm start`.
+5. The backend health endpoint is `http://localhost:5000/api/health`; the frontend normally runs at `http://localhost:3000`.
 
-**2. Setup Backend**
-```bash
-cd backend
-npm install
-
-# Create database
-mysql -u root -p
-CREATE DATABASE hospital_management_system;
-EXIT;
-
-# Import schema
-mysql -u root -p hospital_management_system < database\schema.sql
-
-# Start server
-npm start
-# Backend running at http://localhost:5000
-```
-
-**3. Setup Frontend (in new terminal)**
-```bash
-cd frontend
-npm install
-
-# Start app
-npm start
-# Frontend running at http://localhost:3000
-```
-
-**4. Test Login**
-```
-Visit http://localhost:3000
-Register new account
-Login with credentials
-See ZKP authentication in action!
-```
+The prescription-analysis feature stays disabled until both feature flags in the backend `.env` are explicitly enabled and a provider key/model is configured. Do not commit `.env` or paste API keys into source files.
 
 ---
 
@@ -200,20 +116,20 @@ See ZKP authentication in action!
 ```
 backend/
 ├── config/
-│   └── database.js                 # MySQL connection pool
+│   └── database.js                 # MongoDB/Mongoose connection
+├── models/                         # Mongoose schemas
 ├── services/
-│   └── zkpService.js               # Core ZKP cryptography
+│   └── prescriptionAnalysis/       # Provider, orchestration, evidence, validation
 ├── controllers/
 │   ├── authController.js           # Authentication logic
 │   ├── patientController.js        # Patient management
 │   └── doctorController.js         # Doctor operations
 ├── routes/
 │   ├── authRoutes.js               # /api/auth endpoints
-│   └── hospitalRoutes.js           # /api/* endpoints
+│   ├── comprehensiveRoutes.js       # Role and hospital endpoints
+│   └── doctorPrescriptionAnalysisRoutes.js
 ├── middleware/
 │   └── authMiddleware.js           # JWT & RBAC middleware
-├── database/
-│   └── schema.sql                  # Database schema (14 tables)
 ├── package.json
 ├── .env                            # Configuration
 └── server.js                       # Main server
@@ -222,7 +138,7 @@ frontend/
 ├── src/
 │   ├── services/
 │   │   ├── api.js                  # Axios HTTP client
-│   │   └── zkpAuthService.js       # Client-side ZKP logic
+│   │   └── loginService.js         # Login and registration
 │   ├── components/
 │   │   ├── LoginPage.jsx           # Login interface
 │   │   ├── RegisterPage.jsx        # Registration interface
@@ -259,15 +175,15 @@ Response: { success: true, user: {...} }
 
 ---
 
-POST /api/auth/login/initiate
-{ "username": "dr_smith" }
-Response: { success: true, session_id: "...", challenge: "..." }
+POST /api/auth/login
+{ "username": "dr_smith", "password": "..." }
+Response: { success: true, token: "...", user: {...} }
 
 ---
 
-POST /api/auth/login/verify
-{ "session_id": "...", "proof_s": "..." }
-Response: { success: true, token: "...", user: {...} }
+GET /api/auth/me
+Authorization: Bearer <token>
+Response: { success: true, user: {...} }
 
 ---
 
@@ -295,28 +211,13 @@ GET /api/doctor/slots?date=YYYY-MM-DD         # Available time slots
 
 ---
 
-## 🗄️ Database Schema (14 Tables)
+## MongoDB data
 
-```sql
-1. users              - User accounts with ZKP auth type
-2. zkp_credentials    - Public key, encrypted secret, salt, IV
-3. zkp_sessions       - Temporary session data during login
-4. patients           - Patient information and medical history
-5. doctors            - Doctor specialization and details
-6. nurses             - Nurse schedule and license
-7. appointments       - Doctor-patient meetings
-8. diagnoses          - Medical conditions identified
-9. vital_signs        - Temperature, BP, HR, O2, glucose, etc
-10. medications       - Pharmacy inventory
-11. prescriptions     - Doctor-prescribed medications
-12. lab_requests      - Lab test orders
-13. lab_results       - Test results and reports
-14. medication_administration - Nurse medication logs
-15. daily_progress    - Nurse shift notes
-16. patient_documents - Uploaded files
-17. staff_attendance  - Attendance records
-18. audit_log         - All system activity
-```
+The backend uses Mongoose models for users, role profiles, appointments, diagnoses, prescriptions, medications, patient documents, audit events, and prescription analyses. `backend/database/schema.sql` is a legacy MySQL artifact and is not the schema used by the running Express server.
+
+## Doctor prescription-analysis API
+
+These endpoints are mounted under `/api/doctor/prescription-analysis` and require a doctor JWT. Start analysis with `POST /` using multipart fields `patientId`, `agentMode` (`single` or `multi`), and `provider` (`gemini`, `ollama`, or `both`), plus either `prescriptionId` or a PDF/PNG/JPEG `file`. Results, provider comparison, agent results, doctor review, and prescription history are available from the corresponding `/:id`, `/:id/comparison`, `/:id/agents`, `/:id/review`, and `/history/:prescriptionId` routes.
 
 ---
 
@@ -327,7 +228,7 @@ GET /api/doctor/slots?date=YYYY-MM-DD         # Available time slots
 1. Go to http://localhost:3000/login
 2. Username: dr_smith, Password: SecurePass@2025
 3. Click "Sign In"
-4. Watch console log ZKP proof generation
+4. The backend verifies the password and returns a JWT
 5. Dashboard shows doctor's patients
 ```
 
@@ -355,34 +256,25 @@ GET /api/doctor/slots?date=YYYY-MM-DD         # Available time slots
 ## ⚙️ Configuration (.env)
 
 ```env
-# Database
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=hospital_management_system
+# MongoDB
+MONGO_URI=mongodb://127.0.0.1:27017/hospital_management_system
 
 # Server
 PORT=5000
 NODE_ENV=development
 
 # JWT
-JWT_SECRET=your-super-secret-key-change-in-production
-
-# ZKP Parameters
-ZKP_PRIME=1000000000000000007
-ZKP_BASE=2
-
-# Session
-SESSION_TIMEOUT=30
+JWT_SECRET=replace-with-a-random-secret-at-least-32-characters
 TOKEN_EXPIRY=24h
 
-# File Upload
-MAX_FILE_SIZE=50
-UPLOAD_DIR=./uploads
-
-# AI Integration (Gemini API)
-GEMINI_API_KEY=AIzaSyAKaDkSal6cEfifpbKD48GkHAH8yFjomnU
+# Prescription analysis: leave disabled until explicitly approved
+AI_PRESCRIPTION_ANALYSIS_ENABLED=false
+AI_EXTERNAL_DATA_SHARING_APPROVED=false
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+OLLAMA_API_KEY=
+OLLAMA_MODEL=
+OLLAMA_BASE_URL=https://ollama.com/api
 ```
 
 ---
@@ -390,28 +282,22 @@ GEMINI_API_KEY=AIzaSyAKaDkSal6cEfifpbKD48GkHAH8yFjomnU
 ## 🔒 Security Features
 
 ### Authentication
-- ✅ Zero Knowledge Proof based
-- ✅ Password never transmitted
-- ✅ JWT session tokens
-- ✅ Token expiration (24 hours)
+- Bcrypt password hashes (legacy hashes upgraded on successful login)
+- JWT session tokens require an explicitly configured secret
+- Passwords are sent to the backend for verification; this is not ZKP authentication
 
 ### Authorization
-- ✅ Role-based access control
-- ✅ Route protection
-- ✅ API endpoint protection
-- ✅ Middleware enforcement
+- Role-based access control and protected API routes
+- Prescription-analysis access checks the doctor/patient appointment and selected prescription
 
 ### Data Protection
-- ✅ Encrypted secrets (AES-256-CBC)
-- ✅ HTTPS ready
-- ✅ SQL injection prevention
-- ✅ CORS protection
+- Analysis uploads are processed in memory and are not persisted as source files by the analysis route
+- External provider calls require explicit server-side feature and data-sharing flags
+- Deploy behind HTTPS and configure data retention and access controls
 
 ### Compliance
-- ✅ Audit logging
-- ✅ HIPAA ready
-- ✅ Session tracking
-- ✅ Activity monitoring
+- Analysis start, result access, and doctor review create audit events
+- The project is not certified as HIPAA compliant; perform legal, privacy, and security review before production
 
 ---
 
@@ -420,17 +306,14 @@ GEMINI_API_KEY=AIzaSyAKaDkSal6cEfifpbKD48GkHAH8yFjomnU
 ### Backend won't start
 ```
 Error: connect ECONNREFUSED
-Solution: MySQL not running
-  Windows: net start MySQL
-  Or use MySQL Workbench
+Solution: MongoDB is not reachable at MONGO_URI
+  Start MongoDB or set MONGO_URI to the correct deployment
 ```
 
-### Login fails with "Session not found"
+### Login fails because authentication is not configured
 ```
-Error: Session expired
-Solution: Session lasts 5 minutes
-  Register new user to reset session
-  Check server logs for errors
+Set JWT_SECRET in backend/.env to a random value at least 32 characters long,
+then restart the backend.
 ```
 
 ### CORS errors in browser
@@ -452,13 +335,9 @@ Solution: Clear npm cache and try again
 
 ---
 
-## 📊 Performance Metrics
+## Performance and clinical validation
 
-- **ZKP Proof Generation:** ~100ms client-side
-- **Proof Verification:** ~50ms server-side
-- **Average Login Time:** 2-3 seconds
-- **Database Query Time:** <100ms average
-- **Concurrent Users:** Supports 100+ via connection pooling
+No clinical accuracy or production-capacity benchmark is currently certified. Validate the analysis feature with a clinician-reviewed test set, exercise provider failures and authorization boundaries, and perform load testing before deployment.
 
 ---
 
@@ -486,7 +365,7 @@ Solution: Clear npm cache and try again
 ## 📚 Documentation
 
 - `COMPLETE_SETUP_GUIDE.md` - Detailed setup instructions
-- `HMS_ZKP_Integration.md` - ZKP technical details
+- Older ZKP documents describe a proposed design and do not match the current runtime implementation.
 - `Hospital_Management_System_Architecture.md` - System architecture
 - API documentation in route files
 
@@ -494,7 +373,7 @@ Solution: Clear npm cache and try again
 
 ## 🤝 Contributing
 
-This is a complete implementation. For customization:
+For customization:
 1. Fork the repository
 2. Create feature branch
 3. Submit pull request
@@ -507,43 +386,21 @@ All rights reserved - Hospital Management System
 
 ---
 
-## ✨ Highlights
+## Project status
 
-🎯 **Complete Implementation**
-- Not a template, fully working system
-- Production-ready code
-- All 7 roles implemented
-- Full database schema
-
-🔐 **Advanced Security**
-- ZKP authentication (novel approach)
-- No password transmission
-- Mathematically proven secure
-- HIPAA compliance ready
-
-⚡ **High Performance**
-- JWT stateless sessions
-- Connection pooling
-- Indexed queries
-- Optimized database schema
-
-📱 **User Friendly**
-- Intuitive interfaces
-- Role-specific dashboards
-- Responsive design
-- Error handling
+The backend tests and frontend production build are the available automated checks. They do not establish clinical correctness, full end-to-end coverage, production readiness, or regulatory compliance.
 
 ---
 
 ## 🎓 Learning Resources
 
-- **ZKP Concept:** See `ZKP_Flow_Alice_Example.md`
+- **Legacy ZKP concept documents:** These are design notes, not a description of the current login implementation.
 - **Architecture:** See `Hospital_Management_System_Architecture.md`
 - **API Integration:** Check route files for endpoint details
 - **Frontend Logic:** Review component files for implementation patterns
 
 ---
 
-**Your Hospital Management System is ready to use! 🏥✨**
+Use the local-development instructions above, then validate the workflows and security controls required by your deployment.
 
 For questions or issues, refer to COMPLETE_SETUP_GUIDE.md

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SimpleHashAuthService from '../services/simpleHashAuthService';
-import ZKPAuthService from '../services/zkpAuthService';
 import './Auth.css';
 
 function RegisterPage() {
@@ -30,20 +29,14 @@ function RegisterPage() {
     const handleRegister = async (e) => {
         e.preventDefault();
         
-        console.log('🔍 ===== REGISTRATION PROCESS STARTED =====');
-        console.log('Form Data:', formData);
-
         setLoading(true);
         setError('');
         setSuccess('');
 
         try {
             // Validation Phase
-            console.log('📋 PHASE 1: Frontend Validation');
-            
             if (!formData.username?.trim()) {
                 const errMsg = 'Username is required';
-                console.error('❌', errMsg);
                 setError(errMsg);
                 setLoading(false);
                 return;
@@ -51,7 +44,6 @@ function RegisterPage() {
 
             if (!formData.email?.trim()) {
                 const errMsg = 'Email is required';
-                console.error('❌', errMsg);
                 setError(errMsg);
                 setLoading(false);
                 return;
@@ -59,7 +51,6 @@ function RegisterPage() {
 
             if (!formData.password) {
                 const errMsg = 'Password is required';
-                console.error('❌', errMsg);
                 setError(errMsg);
                 setLoading(false);
                 return;
@@ -67,25 +58,17 @@ function RegisterPage() {
 
             if (formData.password !== formData.confirmPassword) {
                 const errMsg = 'Passwords do not match';
-                console.error('❌', errMsg);
                 setError(errMsg);
                 setLoading(false);
                 return;
             }
 
-            if (formData.password.length < 6) {
-                const errMsg = 'Password must be at least 6 characters';
-                console.error('❌', errMsg);
+            if (formData.password.length < 12 || new TextEncoder().encode(formData.password).length > 72) {
+                const errMsg = 'Password must be at least 12 characters and no more than 72 UTF-8 bytes';
                 setError(errMsg);
                 setLoading(false);
                 return;
             }
-
-            console.log('✅ PHASE 1 COMPLETE: All validations passed');
-
-            // API Call Phase
-            console.log('📤 PHASE 2: Calling Registration API');
-            console.log('Endpoint: POST /api/auth/register');
 
             const result = await SimpleHashAuthService.register(
                 formData.username,
@@ -96,69 +79,20 @@ function RegisterPage() {
                 formData.lastName || ''
             );
 
-            console.log('📥 API Response:', result);
-
             if (result.success) {
-                console.log('✅ PHASE 2 COMPLETE: User created successfully');
-                console.log('New User ID:', result.user?.id);
-                console.log('Username:', result.user?.username);
-                
-                console.log('📍 PHASE 3: Redirecting to login');
                 setSuccess('Registration successful! Redirecting to login...');
                 
                 setTimeout(() => {
-                    console.log('✅ Redirecting now');
                     navigate('/login');
                 }, 2000);
             } else {
                 const errMsg = result.error || 'Registration failed';
-                console.error('❌ PHASE 2 FAILED:', errMsg);
                 setError(errMsg);
             }
 
         } catch (err) {
             const errMsg = err.message || 'An unexpected error occurred';
-            console.error('❌ EXCEPTION DURING REGISTRATION:', err);
-            console.error('Error Message:', errMsg);
             setError(errMsg);
-        } finally {
-            setLoading(false);
-            console.log('🔍 ===== REGISTRATION PROCESS ENDED =====\n');
-        }
-    };
-
-    const handleZKPRegister = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        setSuccess('');
-
-        try {
-            // Basic validations reused from handleRegister
-            if (!formData.username?.trim()) throw new Error('Username is required');
-            if (!formData.email?.trim()) throw new Error('Email is required');
-            if (!formData.password) throw new Error('Password is required');
-            if (formData.password !== formData.confirmPassword) throw new Error('Passwords do not match');
-            if (formData.password.length < 6) throw new Error('Password must be at least 6 characters');
-
-            const result = await ZKPAuthService.register(
-                formData.username,
-                formData.email,
-                formData.password,
-                formData.role,
-                formData.firstName || 'User',
-                formData.lastName || ''
-            );
-
-            if (result.success) {
-                setSuccess('Registration successful! Redirecting to login...');
-                setTimeout(() => navigate('/login'), 1600);
-            } else {
-                setError(result.error || 'ZKP Registration failed');
-            }
-
-        } catch (err) {
-            setError(err.message || 'Registration failed');
         } finally {
             setLoading(false);
         }
@@ -255,7 +189,7 @@ function RegisterPage() {
                             id="password"
                             name="password"
                             type="password"
-                            placeholder="Min 6 characters"
+                            placeholder="At least 12 characters"
                             value={formData.password}
                             onChange={handleChange}
                             disabled={loading}
@@ -278,13 +212,6 @@ function RegisterPage() {
                     <button type="submit" disabled={loading} className="submit-btn">
                         {loading ? 'Creating account...' : 'Create Account'}
                     </button>
-
-                    {/* ZKP register button temporarily hidden per request */}
-                    {/*
-                    <button type="button" disabled={loading} onClick={handleZKPRegister} className="secondary-btn">
-                        {loading ? 'Processing...' : 'Register with ZKP'}
-                    </button>
-                    */}
 
                     <div className="auth-link">
                         <p>

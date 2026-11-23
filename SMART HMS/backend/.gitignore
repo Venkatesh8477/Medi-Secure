@@ -9,3 +9,5 @@ build/
 .vscode/
 package-lock.json
 yarn.lock
+.env
+uploads/

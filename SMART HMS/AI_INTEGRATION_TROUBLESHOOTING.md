@@ -1,5 +1,9 @@
 # AI Integration Troubleshooting Guide
 
+## Credential safety
+
+An API key was previously embedded in this documentation. Revoke that key in the provider console and issue a replacement before enabling Gemini. Store the replacement only in the backend `.env` or a managed secret store; never commit or send it in chat.
+
 ## Error: "Failed to generate AI suggestions" / 403 Forbidden
 
 If you're seeing a 403 Forbidden error when trying to use the AI suggestions feature, follow these steps:
@@ -27,7 +31,7 @@ If you're seeing a 403 Forbidden error when trying to use the AI suggestions fea
 
 1. Verify the API key in your `.env` file:
    ```
-   GEMINI_API_KEY=AIzaSyCCMHbuJJ-9mJODSy6lZIyvL0K5etKLc_A
+   GEMINI_API_KEY=your_new_backend_only_key
    ```
 
 2. Make sure there are no extra spaces or quotes around the key
@@ -83,4 +87,3 @@ curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"
 ```
 
 Replace `YOUR_API_KEY` with your actual key. This should return a list of available models.
-

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './PatientDashboard.css';
+import PatientAIChat from '../../components/patient-ai/PatientAIChat';
 
 const buildFullName = (first, last, fallback = 'Unknown Doctor') => {
     const name = [first, last].filter(Boolean).join(' ').trim();
@@ -11,6 +12,7 @@ const buildFullName = (first, last, fallback = 'Unknown Doctor') => {
 function EnhancedPatientDashboard() {
     const [user, setUser] = useState(null);
     const [activeTab, setActiveTab] = useState('appointments');
+    const [isPatientAiOpen, setIsPatientAiOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [uploadMessage, setUploadMessage] = useState('');
     const [uploadError, setUploadError] = useState('');
@@ -167,10 +169,26 @@ function EnhancedPatientDashboard() {
             <nav className="patient-navbar">
                 <div className="navbar-brand">🏥 Patient Portal</div>
                 <div className="navbar-right">
+                    <button
+                        type="button"
+                        className="patient-ai-launcher"
+                        aria-expanded={isPatientAiOpen}
+                        aria-controls="patient-ai-popover"
+                        onClick={() => setIsPatientAiOpen(open => !open)}
+                    >
+                        <span className="patient-ai-logo" aria-hidden="true">V</span>
+                        <span>{isPatientAiOpen ? 'Close AI Assistance' : 'AI Assistance'}</span>
+                    </button>
                     <span className="user-greeting">Welcome, {user?.username}!</span>
                     <button onClick={handleLogout} className="logout-btn">Logout</button>
                 </div>
             </nav>
+
+            {isPatientAiOpen && (
+                <div className="patient-ai-popover" id="patient-ai-popover">
+                    <PatientAIChat onClose={() => setIsPatientAiOpen(false)} />
+                </div>
+            )}
 
             <div className="patient-dashboard-content">
                 <div className="tabs-navigation">
@@ -264,7 +282,7 @@ function EnhancedPatientDashboard() {
                                     );
                                     
                                     if (response.data.success) {
-                                        setAiSuggestions(response.data.analysis);
+                                        setAiSuggestions({ ...response.data.analysis, sourceNotice: response.data.sourceNotice });
                                         setUploadMessage('✅ Analysis complete!');
                                         setSelectedFile(null);
                                         setDocumentDescription('');
@@ -338,6 +356,7 @@ function EnhancedPatientDashboard() {
                         
                         {aiSuggestions && (
                             <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #ddd' }}>
+                                {aiSuggestions.sourceNotice && <p role="note" style={{ padding: '12px', backgroundColor: '#fff8e1', borderLeft: '4px solid #ffb300' }}>{aiSuggestions.sourceNotice}</p>}
                                 <h3 style={{ color: '#4CAF50', marginTop: 0 }}>📋 Analysis Results</h3>
                                 
                                 {typeof aiSuggestions === 'object' ? (

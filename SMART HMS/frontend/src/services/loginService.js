@@ -1,17 +1,8 @@
 import api from './api';
 
 class LoginService {
-    /**
-     * SIMPLE AUTHENTICATION
-     * Formula: hash = SHA256(SHA256(password) + "hospital2025")
-     * Backend stores hash, we send just username+password
-     * Server computes same hash and compares
-     */
-
     static async login(username, password) {
         try {
-            console.log('🔐 Sending login request:', username);
-            
             const response = await api.post('/auth/login', {
                 username,
                 password
@@ -28,7 +19,6 @@ class LoginService {
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
 
-            console.log('✅ Login successful!');
             return {
                 success: true,
                 token: response.data.token,
@@ -36,7 +26,6 @@ class LoginService {
             };
 
         } catch (error) {
-            console.error('❌ Login error:', error);
             return {
                 success: false,
                 error: error.response?.data?.error || 'Login failed'
@@ -46,8 +35,6 @@ class LoginService {
 
     static async register(username, email, password, role, firstName, lastName) {
         try {
-            console.log('📝 Registering user:', username);
-            
             const response = await api.post('/auth/register', {
                 username,
                 email,
@@ -63,7 +50,6 @@ class LoginService {
                 user: response.data.user
             };
         } catch (error) {
-            console.error('❌ Registration error:', error);
             return {
                 success: false,
                 error: error.response?.data?.error || 'Registration failed'

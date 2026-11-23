@@ -30,8 +30,8 @@ const userSchema = new mongoose.Schema({
     },
     auth_type: {
         type: String,
-        enum: ['zkp', 'traditional', 'simple_hash'],
-        default: 'simple_hash'
+        enum: ['zkp', 'traditional', 'simple_hash', 'bcrypt'],
+        default: 'bcrypt'
     },
     password_hash: {
         type: String,

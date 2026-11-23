@@ -87,12 +87,8 @@ class ZKPAuthService {
      */
     static async generateProof(password, challenge) {
         try {
-            console.log('🔐 CLIENT GENERATING PROOF:');
-            console.log('  challenge:', challenge?.substring?.(0, 50));
-            
             // Derive secret from password
             const secret_x = await this.getSecretFromPassword(password);
-            console.log('  secret_x:', secret_x.toString().substring(0, 50));
 
             // Generate random r for THIS LOGIN ATTEMPT
             const random_r = await this.generateRandomBigInt();
@@ -103,12 +99,10 @@ class ZKPAuthService {
                 random_r,
                 this.ZKP_PARAMS.p
             );
-            console.log('  t (2^r mod p):', t.toString().substring(0, 50));
 
             // Calculate proof s = r + (c × x)
             const c = BigInt(challenge);
             const proof_s = random_r + (c * secret_x);
-            console.log('  s (r + c*x):', proof_s.toString().substring(0, 50));
 
             return {
                 success: true,
@@ -137,11 +131,6 @@ class ZKPAuthService {
                     error: 'Session expired. Please try again.'
                 };
             }
-
-            console.log('🔐 CLIENT SENDING VERIFICATION:');
-            console.log('  session_id:', session_id);
-            console.log('  proof_s length:', proof_s?.length, 'value:', proof_s?.substring?.(0, 50));
-            console.log('  t_value:', t_value?.substring?.(0, 50));
 
             const response = await api.post('/auth/zkp/login/verify', {
                 sessionId: session_id || sessionStorage.getItem('zkp_session_id'),

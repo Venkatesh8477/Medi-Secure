@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import PrescriptionIntelligence from '../components/PrescriptionIntelligence';
+import PatientAIHandoffs from '../components/patient-ai/PatientAIHandoffs';
 import './ComprehensiveDashboard.css';
 
 function DoctorPatientDocuments({ patientId }) {
@@ -67,12 +69,15 @@ function ComprehensiveDashboard() {
     const [user, setUser] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
     const [loading, setLoading] = useState(true);
+    const [dashboardError, setDashboardError] = useState('');
     const [summary, setSummary] = useState({});
     const [patients, setPatients] = useState([]);
     const [appointments, setAppointments] = useState([]);
     const [records, setRecords] = useState({});
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [aiSuggestions, setAiSuggestions] = useState(null);
+    const [aiResult, setAiResult] = useState(null);
+    const [aiMode, setAiMode] = useState('single');
     const [loadingAI, setLoadingAI] = useState(false);
     const [aiError, setAiError] = useState(null);
     const navigate = useNavigate();
@@ -96,40 +101,26 @@ function ComprehensiveDashboard() {
     const loadDashboardData = async (role, token) => {
         try {
             const headers = { Authorization: `Bearer ${token}` };
-            console.log('Loading dashboard data for role:', role);
-            console.log('Using token:', token.substring(0, 50) + '...');
             
             // Load summary
-            console.log('Making request to:', `${API_URL}/dashboard-summary`);
             const summaryRes = await axios.get(`${API_URL}/dashboard-summary`, { headers, timeout: 10000 });
-            console.log('Summary response:', summaryRes.data);
             if (summaryRes.data.success) {
-                console.log('Setting summary:', summaryRes.data.summary);
                 setSummary(summaryRes.data.summary);
-            } else {
-                console.error('Summary API returned success: false');
             }
             
             // Role-specific data
             if (role === 'doctor') {
-                console.log('Fetching doctor-specific data...');
                 const patientsRes = await axios.get(`${API_URL}/doctor/my-patients`, { headers, timeout: 10000 });
-                console.log('Patients response:', patientsRes.data);
                 if (patientsRes.data.success) {
-                    console.log('Setting patients:', patientsRes.data.patients);
                     setPatients(patientsRes.data.patients);
                 } else {
-                    console.error('Patients API returned success: false');
                     setPatients([]);
                 }
                 
                 const appointmentsRes = await axios.get(`${API_URL}/doctor/appointments`, { headers, timeout: 10000 });
-                console.log('Appointments response:', appointmentsRes.data);
                 if (appointmentsRes.data.success) {
-                    console.log('Setting appointments:', appointmentsRes.data.appointments);
                     setAppointments(appointmentsRes.data.appointments);
                 } else {
-                    console.error('Appointments API returned success: false');
                     setAppointments([]);
                 }
             } else if (role === 'patient') {
@@ -160,9 +151,7 @@ function ComprehensiveDashboard() {
             
             setLoading(false);
         } catch (error) {
-            console.error('Error loading dashboard:', error);
-            console.error('Error message:', error.message);
-            console.error('Error response:', error.response?.data);
+            setDashboardError('Could not load dashboard data. Check the API connection and try again.');
             setLoading(false);
         }
     };
@@ -182,10 +171,11 @@ function ComprehensiveDashboard() {
                 setSelectedPatient(res.data);
                 setActiveTab('patient-details');
                 setAiSuggestions(null); // Reset AI suggestions when viewing new patient
+                setAiResult(null);
                 setAiError(null);
             }
         } catch (error) {
-            console.error('Error fetching patient details:', error);
+            setAiError(error.response?.data?.error || 'Could not load patient details.');
         }
     };
 
@@ -194,22 +184,23 @@ function ComprehensiveDashboard() {
         
         setLoadingAI(true);
         setAiError(null);
+        setAiSuggestions(null);
+        setAiResult(null);
         try {
             const token = localStorage.getItem('token');
             const headers = { Authorization: `Bearer ${token}` };
             const res = await axios.post(
                 `${API_URL}/doctor/patient/${selectedPatient.patient.id}/ai-suggestions`,
-                {},
+                { mode: aiMode },
                 { headers }
             );
             if (res.data.success) {
                 setAiSuggestions(res.data.suggestions);
+                setAiResult(res.data);
             } else {
                 setAiError('Failed to get AI suggestions');
             }
         } catch (error) {
-            console.error('Error fetching AI suggestions:', error);
-            console.error('Error response:', error.response?.data);
             const errorMsg = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to get AI suggestions';
             setAiError(errorMsg);
         } finally {
@@ -235,6 +226,7 @@ function ComprehensiveDashboard() {
             </nav>
 
             <div className="dashboard-content">
+                {dashboardError && <p role="alert" className="error-message">{dashboardError}</p>}
                 <div className="tabs-nav">
                     <button
                         className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
@@ -255,6 +247,12 @@ function ComprehensiveDashboard() {
                                 onClick={() => setActiveTab('appointments')}
                             >
                                 📅 Schedule ({appointments.length})
+                            </button>
+                            <button
+                                className={`tab-btn ${activeTab === 'ai-handoffs' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('ai-handoffs')}
+                            >
+                                💬 AI Assistance Requests
                             </button>
                         </>
                     )}
@@ -388,14 +386,23 @@ function ComprehensiveDashboard() {
                                 </table>
                             </div>
                         )}
+
+                        {activeTab === 'ai-handoffs' && user?.role === 'doctor' && <PatientAIHandoffs />}
                     </div>
                 )}
 
                 {activeTab === 'patient-details' && selectedPatient && (
                     <div className="tab-content">
                         <button className="back-btn" onClick={() => setActiveTab('patients')}>← Back to Patients</button>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '16px', flexWrap: 'wrap' }}>
                         <h2>Patient: <strong>{selectedPatient.patient.first_name} {selectedPatient.patient.last_name}</strong></h2>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                AI review mode
+                                <select value={aiMode} onChange={event => setAiMode(event.target.value)} disabled={loadingAI}>
+                                    <option value="single">Single agent</option>
+                                    <option value="multi">Multi-agent</option>
+                                </select>
+                            </label>
                             <button 
                                 className="action-btn" 
                                 onClick={handleGetAISuggestions}
@@ -503,6 +510,12 @@ function ComprehensiveDashboard() {
                             <div className="detail-section">
                                 <DoctorPatientDocuments patientId={selectedPatient.patient.id} />
                             </div>
+                            {user?.role === 'doctor' && (
+                                <PrescriptionIntelligence
+                                    patientId={selectedPatient.patient.id}
+                                    prescriptions={selectedPatient.prescriptions || []}
+                                />
+                            )}
 
                             {/* AI Suggestions Section */}
                             {(aiSuggestions || aiError) && (
@@ -515,6 +528,14 @@ function ComprehensiveDashboard() {
                                 }}>
                                     <h3 style={{ color: '#4CAF50', marginBottom: '20px' }}>🤖 AI Medical Assistant Suggestions</h3>
                                     
+                                    <p role="note" style={{ padding: '12px', backgroundColor: '#fff8e1', borderLeft: '4px solid #ffb300' }}>
+                                        {aiResult?.safety || 'AI-generated clinical decision support. A licensed doctor must review and verify all content. Do not use this output alone to diagnose or change treatment.'}
+                                    </p>
+                                    {aiResult && <p><strong>Mode:</strong> {aiResult.mode === 'multi' ? 'Multi-agent' : 'Single-agent'}</p>}
+                                    {aiResult?.metrics && <p><strong>Run:</strong> {aiResult.metrics.llmCallCount} model call(s), {aiResult.metrics.latencyMs} ms
+                                        {aiResult.metrics.tokenUsage ? `, ${aiResult.metrics.tokenUsage.inputTokens + aiResult.metrics.tokenUsage.outputTokens} tokens` : ''}
+                                        {typeof aiResult.metrics.agreementSignal === 'number' ? `, ${Math.round(aiResult.metrics.agreementSignal * 100)}% text agreement signal` : ''}
+                                    </p>}
                                     {aiError && (
                                         <div style={{ 
                                             padding: '15px', 
@@ -530,6 +551,16 @@ function ComprehensiveDashboard() {
 
                                     {aiSuggestions && !aiSuggestions.error && (
                                         <div>
+                                            {aiResult?.agentFindings && (
+                                                <details style={{ marginBottom: '20px' }}>
+                                                    <summary>Review individual agent findings</summary>
+                                                    <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(aiResult.agentFindings, null, 2)}</pre>
+                                                    <p>{aiResult.metrics?.agreementNote}</p>
+                                                </details>
+                                            )}
+                                            {aiSuggestions.conflicts?.length > 0 && <div><h4>Agent disagreements</h4><ul>{aiSuggestions.conflicts.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
+                                            {aiSuggestions.uncertainty?.length > 0 && <div><h4>Uncertainty</h4><ul>{aiSuggestions.uncertainty.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
+                                            {aiSuggestions.evidenceNeeded?.length > 0 && <div><h4>Information to verify</h4><ul>{aiSuggestions.evidenceNeeded.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
                                             {/* Diagnosis Differentials */}
                                             {aiSuggestions.diagnosisDifferentials && (
                                                 <div style={{ marginBottom: '25px' }}>

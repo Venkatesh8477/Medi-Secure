@@ -7,8 +7,6 @@ class SimpleHashAuthService {
      */
     static async register(username, email, password, role, firstName, lastName) {
         try {
-            console.log('📝 REGISTRATION REQUEST:', { username, email, role });
-            
             const response = await api.post('/auth/register', {
                 username,
                 email,
@@ -18,15 +16,12 @@ class SimpleHashAuthService {
                 lastName
             });
 
-            console.log('✅ REGISTRATION SUCCESS:', response.data);
-
             return {
                 success: true,
                 message: 'Registration successful! You can now login.',
                 user: response.data.user
             };
         } catch (error) {
-            console.error('❌ REGISTRATION ERROR:', error.response?.data || error.message);
             const responseError = error.response?.data?.error || error.response?.data?.message;
             const statusText = error.response?.status ? ` [${error.response.status}]` : '';
             return {
@@ -41,8 +36,6 @@ class SimpleHashAuthService {
      */
     static async login(username, password) {
         try {
-            console.log('🔐 LOGIN ATTEMPT:', { username, passwordLength: password.length });
-            
             const response = await api.post('/auth/login', {
                 username,
                 password
@@ -55,8 +48,6 @@ class SimpleHashAuthService {
                 };
             }
 
-            console.log('✅ LOGIN SUCCESS');
-            
             // Store token
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -68,7 +59,6 @@ class SimpleHashAuthService {
             };
 
         } catch (error) {
-            console.error('❌ LOGIN FAILED:', error.response?.data || error.message);
             const responseError = error.response?.data?.error || error.response?.data?.message;
             const statusText = error.response?.status ? ` [${error.response.status}]` : '';
             return {

@@ -1,0 +1,12 @@
+.patient-ai-handoff-list { display:grid; gap:12px; }
+.patient-ai-handoff-card { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px; border:1px solid #dfe3eb; border-radius:10px; background:#fff; }
+.patient-ai-handoff-card p { margin:8px 0; }
+.patient-ai-handoff-detail { margin-top:20px; padding:16px; border:1px solid #dfe3eb; border-radius:10px; background:#f8f9fc; }
+.patient-ai-handoff-messages { max-height:350px; overflow:auto; margin:12px 0; padding:12px; background:#fff; border-radius:8px; }
+.patient-ai-handoff-messages article { padding:8px 0; border-bottom:1px solid #eee; }
+.patient-ai-handoff-messages article:last-child { border-bottom:0; }
+.patient-ai-handoff-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.patient-ai-handoff-actions button { padding:8px 12px; border:1px solid #ccd1dc; border-radius:6px; cursor:pointer; }
+@media (max-width: 600px) {
+    .patient-ai-handoff-card { align-items:flex-start; flex-direction:column; }
+}
